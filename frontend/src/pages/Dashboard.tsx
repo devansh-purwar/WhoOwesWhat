@@ -104,13 +104,13 @@ export function Dashboard() {
                         <CardContent>
                             {balances && balances.length > 0 ? (
                                 <div className="space-y-3">
-                                    {balances.slice(0, 5).map((balance) => (
+                                    {balances.slice(0, 5).map((balance: any) => (
                                         <div key={balance.id} className="flex items-center justify-between p-2 border-b">
                                             <div className="text-sm">
                                                 {balance.fromUserId === user?.id ? (
-                                                    <span>You owe User #{balance.toUserId}</span>
+                                                    <span>You owe {balance.toUserName && balance.toUserName !== 'Unknown' ? balance.toUserName : `User #${balance.toUserId}`}</span>
                                                 ) : (
-                                                    <span>User #{balance.fromUserId} owes you</span>
+                                                    <span>{balance.fromUserName && balance.fromUserName !== 'Unknown' ? balance.fromUserName : `User #${balance.fromUserId}`} owes you</span>
                                                 )}
                                             </div>
                                             <Badge variant="outline">

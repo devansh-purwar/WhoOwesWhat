@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useRegisterUser } from '@/hooks/useUser';
 import type { RegisterUserRequest } from '@/api/types';
+import authApi from '@/api/auth';
+import { authService } from '@/services/authService';
 
 export function RegisterForm() {
     const navigate = useNavigate();
@@ -16,11 +18,14 @@ export function RegisterForm() {
 
     const onSubmit = async (data: RegisterUserRequest) => {
         try {
-            setError('');
-            await registerMutation.mutateAsync(data);
-            // Use window.location for reliable redirect after registration
-            window.location.href = '/dashboard';
+            console.log('Registering user:', data);
+            const response = await registerMutation.mutateAsync(data);
+            console.log('Registration successful, response:', response);
+            // The hook useRegisterUser already deals with token storage
+            // Redirect
+            navigate('/dashboard');
         } catch (err: any) {
+            console.error(err);
             setError(err.response?.data?.message || 'Registration failed');
         }
     };

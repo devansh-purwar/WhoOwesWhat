@@ -6,6 +6,7 @@ import { LandingPage } from './pages/LandingPage';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { GroupDetails } from './pages/GroupDetails';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 function App() {
   const userId = localStorage.getItem('userId');
@@ -37,16 +38,24 @@ function App() {
           element={userId ? <Navigate to="/dashboard" /> : <ResetPassword />}
         />
 
-        {/* Dynamic Group Route */}
+        {/* Protected Routes */}
         <Route
           path="/groups/:groupId"
-          element={userId ? <GroupDetails /> : <Navigate to="/" />}
+          element={
+            <ProtectedRoute>
+              <GroupDetails />
+            </ProtectedRoute>
+          }
         />
 
         {/* Dashboard Route */}
         <Route
           path="/dashboard"
-          element={userId ? <Dashboard /> : <Navigate to="/" />}
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
         />
 
         {/* Fallback */}

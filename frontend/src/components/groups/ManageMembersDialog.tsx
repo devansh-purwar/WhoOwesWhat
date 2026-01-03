@@ -131,10 +131,12 @@ export function ManageMembersDialog({ open, onOpenChange, groupId, currentUserId
                                     <div key={member.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/30 group">
                                         <div className="flex items-center gap-3">
                                             <div className="h-8 w-8 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-xs font-bold font-mono text-indigo-600">
-                                                U{member.userId}
+                                                {member.userName ? member.userName.charAt(0).toUpperCase() : `U${member.userId}`}
                                             </div>
                                             <div>
-                                                <p className="text-sm font-medium">User #{member.userId}</p>
+                                                <p className="text-sm font-medium">
+                                                    {member.userName && member.userName !== 'Unknown' ? member.userName : `User #${member.userId}`}
+                                                </p>
                                                 <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">{member.role}</p>
                                             </div>
                                         </div>

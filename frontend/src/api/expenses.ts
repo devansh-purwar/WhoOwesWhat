@@ -1,11 +1,17 @@
 import { apiClient } from './client';
-import type { Expense, ExpenseSplit, CreateExpenseRequest } from './types';
+import type { Expense, ExpenseSplit, CreateExpenseRequest, UpdateExpenseRequest } from './types';
 
 export const expenseApi = {
     create: async (data: CreateExpenseRequest): Promise<Expense> => {
         const response = await apiClient.post<Expense>('/expenses', data);
         return response.data;
     },
+
+    update: async (id: number, data: UpdateExpenseRequest): Promise<Expense> => {
+        const response = await apiClient.put<Expense>(`/expenses/${id}`, data);
+        return response.data;
+    },
+
 
     getById: async (id: number): Promise<Expense> => {
         const response = await apiClient.get<Expense>(`/expenses/${id}`);
@@ -22,8 +28,8 @@ export const expenseApi = {
         return response.data;
     },
 
-    getSplits: async (expenseId: number): Promise<ExpenseSplit[]> => {
-        const response = await apiClient.get<ExpenseSplit[]>(`/expenses/${expenseId}/splits`);
+    getSplits: async (id: number): Promise<ExpenseSplit[]> => {
+        const response = await apiClient.get<ExpenseSplit[]>(`/expenses/${id}/splits`);
         return response.data;
     },
 

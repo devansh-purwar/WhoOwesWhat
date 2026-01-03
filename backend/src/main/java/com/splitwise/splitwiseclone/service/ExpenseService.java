@@ -34,6 +34,20 @@ public class ExpenseService {
     private final BalanceService balanceService;
     private final GroupService groupService;
 
+    /**
+     * Creates a new expense, calculates splits, and updates balances.
+     *
+     * @param amount       The total amount of the expense
+     * @param description  Brief description
+     * @param category     Expense category
+     * @param currency     Currency code
+     * @param paidBy       ID of the user who paid
+     * @param groupId      Optional group ID
+     * @param splitType    Type of split (EQUAL, EXACT, etc.)
+     * @param participants List of participants and their split details
+     * @param expenseDate  Date of the expense
+     * @return The created Expense entity
+     */
     public Expense createExpense(
             BigDecimal amount,
             String description,
@@ -93,21 +107,48 @@ public class ExpenseService {
         return expense;
     }
 
+    /**
+     * Updates an existing expense and recalculates splits and balances.
+     * Including permission checks.
+     *
+     * @param expenseId    ID of the expense to update
+     * @param userId       ID of the user requesting the update
+     * @param amount       New amount
+     * @param description  New description
+     * @param category     New category
+     * @param splitType    New split type
+     * @param participants Updated participants list
+     * @param expenseDate  Updated date
+     * @return The updated Expense entity
+     */
     public Expense updateExpense(
             Long expenseId,
+            Long userId,
             BigDecimal amount,
             String description,
             CategoryType category,
-            List<SplitParticipant> participants) {
-        log.info("Updating expense: {}", expenseId);
+            SplitType splitType,
+            List<SplitParticipant> participants,
+            LocalDateTime expenseDate) {
+        log.info("Updating expense: {} by user: {}", expenseId, userId);
 
         Expense expense = expenseRepository.findById(expenseId)
                 .orElseThrow(() -> new IllegalArgumentException("Expense not found"));
 
+        // Validate permission: user must be the one who paid for the expense
+        if (!expense.getPaidBy().equals(userId)) {
+            throw new SecurityException("You do not have permission to edit this expense");
+        }
+
+        // Reverse old balances before updating
+        if (expense.getGroupId() != null) {
+            balanceService.recalculateBalancesForGroup(expense.getGroupId());
+        }
+
         // Delete old splits
         expenseSplitRepository.deleteByExpenseId(expenseId);
 
-        // Update expense
+        // Update expense fields
         if (amount != null) {
             expense.setAmount(amount);
         }
@@ -116,6 +157,12 @@ public class ExpenseService {
         }
         if (category != null) {
             expense.setCategory(category);
+        }
+        if (splitType != null) {
+            expense.setSplitType(splitType);
+        }
+        if (expenseDate != null) {
+            expense.setExpenseDate(expenseDate);
         }
 
         expense = expenseRepository.save(expense);
@@ -142,20 +189,58 @@ public class ExpenseService {
                 expenseSplitRepository.save(expenseSplit);
             }
 
-            // Recalculate balances
-            balanceService.recalculateBalancesForGroup(expense.getGroupId());
+            // Recalculate balances with new splits
+            balanceService.updateBalancesForExpense(
+                    expense.getId(),
+                    expense.getPaidBy(),
+                    splits,
+                    expense.getCurrency(),
+                    expense.getGroupId());
         }
 
         return expense;
     }
 
-    public void deleteExpense(Long expenseId) {
-        log.info("Deleting expense: {}", expenseId);
+    /**
+     * Deletes an expense and reverses its effect on balances.
+     * Check permissions (Creator or Admin).
+     *
+     * @param expenseId        ID of the expense
+     * @param requestingUserId ID of the user requesting deletion
+     */
+    public void deleteExpense(Long expenseId, Long requestingUserId) {
+        log.info("Deleting expense: {} by user: {}", expenseId, requestingUserId);
 
         Expense expense = expenseRepository.findById(expenseId)
                 .orElseThrow(() -> new IllegalArgumentException("Expense not found"));
 
         Long groupId = expense.getGroupId();
+
+        // Permission check: Creator or Group Admin
+        boolean isCreator = expense.getPaidBy().equals(requestingUserId);
+        boolean isAdmin = false;
+
+        log.info("Checking delete permission for expenseId: {}, requestingUserId: {}, paidBy: {}, groupId: {}",
+                expenseId, requestingUserId, expense.getPaidBy(), groupId);
+
+        if (!isCreator) {
+            if (groupId != null) {
+                try {
+                    isAdmin = groupService.isGroupAdmin(groupId, requestingUserId);
+                    log.info("User {} is admin of group {}: {}", requestingUserId, groupId, isAdmin);
+                } catch (Exception e) {
+                    log.error("Error checks group admin: {}", e.getMessage());
+                }
+            }
+
+            if (!isAdmin) {
+                log.warn("Permission denied: User {} is neither creator ({}) nor admin", requestingUserId,
+                        expense.getPaidBy());
+                throw new SecurityException("You do not have permission to delete this expense");
+            }
+        } else {
+            log.info("User {} is the creator/payer, allowing delete", requestingUserId);
+        }
 
         expenseSplitRepository.deleteByExpenseId(expenseId);
         expenseRepository.deleteById(expenseId);
@@ -166,22 +251,46 @@ public class ExpenseService {
         }
     }
 
+    /**
+     * Gets an expense by ID.
+     *
+     * @param expenseId Expnese ID
+     * @return Expense entity
+     */
     @Transactional(readOnly = true)
     public Expense getExpenseById(Long expenseId) {
         return expenseRepository.findById(expenseId)
                 .orElseThrow(() -> new IllegalArgumentException("Expense not found"));
     }
 
+    /**
+     * Gets expenses for a group.
+     *
+     * @param groupId Group ID
+     * @return List of expenses
+     */
     @Transactional(readOnly = true)
     public List<Expense> getGroupExpenses(Long groupId) {
         return expenseRepository.findByGroupId(groupId);
     }
 
+    /**
+     * Gets personal expenses for a user.
+     *
+     * @param userId User ID
+     * @return List of expenses
+     */
     @Transactional(readOnly = true)
     public List<Expense> getPersonalExpenses(Long userId) {
         return expenseRepository.findPersonalExpensesByUserId(userId);
     }
 
+    /**
+     * Gets split details for an expense.
+     *
+     * @param expenseId Expense ID
+     * @return List of splits
+     */
     @Transactional(readOnly = true)
     public List<ExpenseSplit> getExpenseSplits(Long expenseId) {
         return expenseSplitRepository.findByExpenseId(expenseId);

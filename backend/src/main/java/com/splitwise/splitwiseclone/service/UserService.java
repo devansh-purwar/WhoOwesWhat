@@ -27,6 +27,15 @@ public class UserService {
     private final PasswordResetTokenRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * Registers a new user.
+     *
+     * @param email    Email address (must be unique)
+     * @param phone    Phone number (optional, must be unique)
+     * @param password Password (will be hashed)
+     * @param name     Full name
+     * @return The created User entity
+     */
     public User registerUser(String email, String phone, String password, String name) {
         log.info("Registering new user with email: {}", email);
 
@@ -48,16 +57,36 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    /**
+     * Finds a user by ID.
+     *
+     * @param userId User ID
+     * @return Optional containing User if found
+     */
     @Transactional(readOnly = true)
     public Optional<User> getUserById(Long userId) {
         return userRepository.findById(userId);
     }
 
+    /**
+     * Finds a user by Email.
+     *
+     * @param email User Email
+     * @return Optional containing User if found
+     */
     @Transactional(readOnly = true)
     public Optional<User> getUserByEmail(String email) {
         return userRepository.findByEmail(email);
     }
 
+    /**
+     * Updates user profile info.
+     *
+     * @param userId User ID
+     * @param name   New name
+     * @param phone  New phone number
+     * @return Updated User entity
+     */
     public User updateUserProfile(Long userId, String name, String phone) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -75,6 +104,13 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    /**
+     * Validates user credentials.
+     *
+     * @param email    User email
+     * @param password Plain text password
+     * @return true if credentials match, false otherwise
+     */
     public boolean validatePassword(String email, String password) {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) {
@@ -83,6 +119,12 @@ public class UserService {
         return passwordEncoder.matches(password, userOpt.get().getPasswordHash());
     }
 
+    /**
+     * Generates a password reset token.
+     *
+     * @param email User email
+     * @return The generated token (string)
+     */
     public String initiatePasswordReset(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + email));
@@ -105,6 +147,12 @@ public class UserService {
         return token;
     }
 
+    /**
+     * Resets the user's password using the token.
+     *
+     * @param token       Valid reset token
+     * @param newPassword New password
+     */
     public void resetPassword(String token, String newPassword) {
         log.info("Resetting password for token: {}", token);
         PasswordResetToken resetToken = tokenRepository.findByToken(token)
@@ -122,6 +170,12 @@ public class UserService {
         tokenRepository.save(resetToken);
     }
 
+    /**
+     * Search for users matching query.
+     *
+     * @param query Search string
+     * @return List of matching users
+     */
     public java.util.List<User> searchUsers(String query) {
         log.info("Searching for users with query: {}", query);
         return userRepository.findByNameContainingIgnoreCaseOrEmailContainingIgnoreCase(query, query);

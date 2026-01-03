@@ -29,8 +29,10 @@ public class BalanceService {
 
     private final BalanceRepository balanceRepository;
     private final ExpenseRepository expenseRepository;
-    private final ExpenseSplitRepository expenseSplitRepository;
+    private final ExpenseSplitRepository expenseSplitRepository; // Kept one instance
     private final SettlementRepository settlementRepository;
+    private final com.splitwise.splitwiseclone.repository.UserRepository userRepository;
+    private final com.splitwise.splitwiseclone.repository.GroupRepository groupRepository;
 
     /**
      * Update balances after a new expense is created
@@ -82,7 +84,7 @@ public class BalanceService {
                             expense.getPaidBy(),
                             split.getAmount(),
                             expense.getCurrency(),
-                            groupId);
+                            expense.getGroupId());
                 }
             }
         }
@@ -146,19 +148,45 @@ public class BalanceService {
     }
 
     /**
-     * Get all balances for a user
+     * Get all balances for a user with details
      */
     @Transactional(readOnly = true)
-    public List<Balance> getUserBalances(Long userId) {
-        return balanceRepository.findByUserId(userId);
+    public List<com.splitwise.splitwiseclone.dto.BalanceResponse> getUserBalances(Long userId) {
+        List<Balance> balances = balanceRepository.findByUserId(userId);
+        return mapToBalanceResponses(balances);
     }
 
     /**
-     * Get all balances for a group
+     * Get all balances for a group with details
      */
     @Transactional(readOnly = true)
-    public List<Balance> getGroupBalances(Long groupId) {
-        return balanceRepository.findByGroupId(groupId);
+    public List<com.splitwise.splitwiseclone.dto.BalanceResponse> getGroupBalances(Long groupId) {
+        List<Balance> balances = balanceRepository.findByGroupId(groupId);
+        return mapToBalanceResponses(balances);
+    }
+
+    private List<com.splitwise.splitwiseclone.dto.BalanceResponse> mapToBalanceResponses(List<Balance> balances) {
+        return balances.stream().map(balance -> {
+            String fromUserName = userRepository.findById(balance.getFromUserId())
+                    .map(com.splitwise.splitwiseclone.entity.User::getName).orElse("Unknown");
+            String toUserName = userRepository.findById(balance.getToUserId())
+                    .map(com.splitwise.splitwiseclone.entity.User::getName).orElse("Unknown");
+            String groupName = balance.getGroupId() != null ? groupRepository.findById(balance.getGroupId())
+                    .map(com.splitwise.splitwiseclone.entity.Group::getName).orElse(null)
+                    : null;
+
+            return com.splitwise.splitwiseclone.dto.BalanceResponse.builder()
+                    .id(balance.getId())
+                    .fromUserId(balance.getFromUserId())
+                    .fromUserName(fromUserName)
+                    .toUserId(balance.getToUserId())
+                    .toUserName(toUserName)
+                    .amount(balance.getAmount())
+                    .currency(balance.getCurrency())
+                    .groupId(balance.getGroupId())
+                    .groupName(groupName)
+                    .build();
+        }).collect(java.util.stream.Collectors.toList());
     }
 
     /**

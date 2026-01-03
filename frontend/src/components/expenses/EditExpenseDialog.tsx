@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useUserGroups, useGroupMembers } from '@/hooks/useGroups';
-import { useCreateExpense } from '@/hooks/useExpenses';
+import { useGroupMembers } from '@/hooks/useGroups';
+import { useUpdateExpense, useExpenseSplits } from '@/hooks/useExpenses';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,12 +20,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { SplitType, CategoryType } from '@/api/types';
+import type { Expense } from '@/api/types';
 
-interface CreateExpenseDialogProps {
+interface EditExpenseDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    userId: number;
-    initialGroupId?: string;
+    expense: Expense | null;
 }
 
 interface ParticipantSplit {
@@ -35,32 +35,43 @@ interface ParticipantSplit {
     shares?: number;
 }
 
-export function CreateExpenseDialog({ open, onOpenChange, userId, initialGroupId }: CreateExpenseDialogProps) {
+export function EditExpenseDialog({ open, onOpenChange, expense }: EditExpenseDialogProps) {
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
-    const [groupId, setGroupId] = useState<string>(initialGroupId || '');
     const [category, setCategory] = useState<CategoryType>(CategoryType.OTHER);
     const [splitType, setSplitType] = useState<SplitType>(SplitType.EQUAL);
     const [participantSplits, setParticipantSplits] = useState<ParticipantSplit[]>([]);
 
-    const { data: groups } = useUserGroups(userId);
-    const { data: members } = useGroupMembers(groupId ? parseInt(groupId) : undefined);
-    const createExpenseMutation = useCreateExpense();
+    const { data: members } = useGroupMembers(expense?.groupId);
+    const { data: existingSplits } = useExpenseSplits(expense?.id);
+    const updateExpenseMutation = useUpdateExpense();
+
+    // Initialize form when expense changes
+    useEffect(() => {
+        if (expense) {
+            setAmount(expense.amount.toString());
+            setDescription(expense.description);
+            setCategory(expense.category);
+            setSplitType(expense.splitType);
+        }
+    }, [expense]);
 
     // Initialize participant splits when members change
     useEffect(() => {
         if (members && members.length > 0) {
-            console.log('CreateExpenseDialog members:', members);
-            setParticipantSplits(
-                members.map(m => ({
+            // If we have existing splits, map them to the participants
+            const initialSplits = members.map(m => {
+                const existingSplit = existingSplits?.find(s => s.userId === m.userId);
+                return {
                     userId: m.userId,
-                    amount: undefined,
-                    percentage: undefined,
-                    shares: 1,
-                }))
-            );
+                    amount: existingSplit?.amount,
+                    percentage: existingSplit?.percentage,
+                    shares: existingSplit?.shares ?? 1,
+                };
+            });
+            setParticipantSplits(initialSplits);
         }
-    }, [members]);
+    }, [members, existingSplits]);
 
     const updateParticipantSplit = (userId: number, field: 'amount' | 'percentage' | 'shares', value: number) => {
         setParticipantSplits(prev =>
@@ -70,7 +81,7 @@ export function CreateExpenseDialog({ open, onOpenChange, userId, initialGroupId
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!members || members.length === 0) return;
+        if (!expense || !members || members.length === 0) return;
 
         try {
             const participants = participantSplits.map(p => {
@@ -87,60 +98,41 @@ export function CreateExpenseDialog({ open, onOpenChange, userId, initialGroupId
                 return participant;
             });
 
-            await createExpenseMutation.mutateAsync({
-                amount: parseFloat(amount),
-                description,
-                category,
-                currency: 'INR',
-                paidBy: userId,
-                groupId: groupId ? parseInt(groupId) : undefined,
-                splitType,
-                participants,
-                expenseDate: new Date().toISOString(),
+            await updateExpenseMutation.mutateAsync({
+                id: expense.id,
+                data: {
+                    amount: parseFloat(amount),
+                    description,
+                    category,
+                    splitType,
+                    participants,
+                },
             });
 
-            // Reset form
-            setAmount('');
-            setDescription('');
-            setGroupId('');
-            setSplitType(SplitType.EQUAL);
             onOpenChange(false);
         } catch (error) {
-            console.error('Failed to create expense:', error);
+            console.error('Failed to update expense:', error);
         }
     };
 
     const getMemberName = (userId: number) => {
         const member = members?.find(m => m.userId === userId);
-        return member ? member.userName : `User ${userId}`;
+        return member ? (member.userName && member.userName !== 'Unknown' ? member.userName : `User ${userId}`) : `User ${userId}`;
     };
+
+    if (!expense) return null;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Add New Expense</DialogTitle>
+                    <DialogTitle>Edit Expense</DialogTitle>
                     <DialogDescription>
-                        Split an expense with your group members.
+                        Update expense details and split configuration.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit}>
                     <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="group">Select Group</Label>
-                            <Select value={groupId} onValueChange={setGroupId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a group" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {groups?.map((group) => (
-                                        <SelectItem key={group.id} value={group.id.toString()}>
-                                            {group.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
                         <div className="grid gap-2">
                             <Label htmlFor="description">Description</Label>
                             <Input
@@ -259,8 +251,11 @@ export function CreateExpenseDialog({ open, onOpenChange, userId, initialGroupId
                         )}
                     </div>
                     <DialogFooter>
-                        <Button type="submit" disabled={createExpenseMutation.isPending || !groupId}>
-                            {createExpenseMutation.isPending ? 'Adding...' : 'Add Expense'}
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={updateExpenseMutation.isPending}>
+                            {updateExpenseMutation.isPending ? 'Updating...' : 'Update Expense'}
                         </Button>
                     </DialogFooter>
                 </form>

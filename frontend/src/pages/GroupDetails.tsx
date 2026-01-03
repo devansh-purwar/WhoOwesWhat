@@ -20,6 +20,8 @@ export function GroupDetails() {
     const { data: members, isLoading: isLoadingMembers } = useGroupMembers(groupId ? parseInt(groupId) : undefined);
     const { data: expenses, isLoading: isLoadingExpenses } = useGroupExpenses(groupId ? parseInt(groupId) : undefined);
 
+    console.log('GroupDetails: members data:', members); // Debug log
+
     const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
     const [isManageMembersOpen, setIsManageMembersOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -78,6 +80,17 @@ export function GroupDetails() {
                         >
                             <Settings className="h-4 w-4" />
                         </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                                localStorage.clear();
+                                window.location.href = '/login';
+                            }}
+                        >
+                            Logout
+                        </Button>
                     </div>
                 </div>
 
@@ -95,7 +108,7 @@ export function GroupDetails() {
                             </Button>
                         </div>
 
-                        <ExpenseList expenses={expenses || []} />
+                        <ExpenseList expenses={expenses || []} members={members || []} />
                     </div>
 
                     {/* Sidebar: Members & Summary */}
@@ -114,10 +127,10 @@ export function GroupDetails() {
                                         <div key={member.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs font-bold font-mono">
-                                                    U{member.userId}
+                                                    {member.userName ? member.userName.charAt(0).toUpperCase() : `U${member.userId}`}
                                                 </div>
                                                 <div className="text-sm font-medium">
-                                                    User #{member.userId}
+                                                    {member.userName && member.userName !== "Unknown" ? member.userName : `User #${member.userId}`}
                                                     {member.userId === user?.id && <span className="ml-1.5 text-[10px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">You</span>}
                                                 </div>
                                             </div>
@@ -154,6 +167,7 @@ export function GroupDetails() {
                             open={isAddExpenseOpen}
                             onOpenChange={setIsAddExpenseOpen}
                             userId={user.id}
+                            initialGroupId={group.id.toString()}
                         />
                         <ManageMembersDialog
                             open={isManageMembersOpen}

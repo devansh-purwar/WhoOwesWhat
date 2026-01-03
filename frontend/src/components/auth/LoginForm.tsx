@@ -4,30 +4,39 @@ import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { authApi } from '@/api/auth';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function LoginForm() {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        setError(null);
 
-        // Simple mock login for now as we don't have a dedicated login endpoint yet
-        // In a real app, we'd hit /api/auth/login or similar
         try {
-            // We'll store a placeholder for now since the user can register
-            // Mocking behavior for demonstration
-            console.log("Login attempted with", email);
-            setTimeout(() => {
-                setIsLoading(false);
-                // navigate('/dashboard'); // Temporarily commented until we have actual login
-                alert("Login endpoint not implemented yet. Please use Register to create an account.");
-            }, 500);
-        } catch (err) {
+            const response = await authApi.login({ email, password });
+            console.log("Login successful", response);
+
+            // Store user info in localStorage (matches useUser.ts logic)
+            localStorage.setItem('userId', response.id.toString());
+            localStorage.setItem('splitwise_user', JSON.stringify({ id: response.id, name: response.name, email: response.email }));
+            if (response.token) {
+                localStorage.setItem('splitwise_auth_token', response.token);
+            }
+
             setIsLoading(false);
+            window.location.href = '/dashboard';
+        } catch (err: any) {
+            setIsLoading(false);
+            setError(err.response?.data?.message || err.message || "Failed to sign in. Please try again.");
+            console.error("Login error:", err);
         }
     };
 
@@ -48,6 +57,12 @@ export function LoginForm() {
                     <CardDescription>Enter your email and password to access your account</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {error && (
+                        <Alert variant="destructive" className="mb-4">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium leading-none" htmlFor="email">Email</label>

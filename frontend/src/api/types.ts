@@ -52,7 +52,9 @@ export interface GroupMember {
     id: number;
     groupId: number;
     userId: number;
-    role: GroupRole;
+    userName: string;
+    userEmail: string;
+    role: 'ADMIN' | 'MEMBER';
     joinedAt: string;
 }
 
@@ -131,3 +133,13 @@ export interface CreateExpenseRequest {
     participants: SplitParticipant[];
     expenseDate?: string;
 }
+
+export interface UpdateExpenseRequest {
+    amount?: number;
+    description?: string;
+    category?: CategoryType;
+    splitType?: SplitType;
+    participants?: SplitParticipant[];
+    expenseDate?: string;
+}
+

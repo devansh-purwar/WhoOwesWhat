@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { expenseApi } from '../api/expenses';
-import type { CreateExpenseRequest } from '../api/types';
+import type { CreateExpenseRequest, UpdateExpenseRequest } from '../api/types';
 
 export function useGroupExpenses(groupId?: number) {
     return useQuery({
@@ -32,5 +32,43 @@ export function useCreateExpense() {
             }
             queryClient.invalidateQueries({ queryKey: ['balances', 'user', expense.paidBy] });
         },
+    });
+}
+
+export function useUpdateExpense() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, data }: { id: number; data: UpdateExpenseRequest }) =>
+            expenseApi.update(id, data),
+        onSuccess: (expense) => {
+            if (expense.groupId) {
+                queryClient.invalidateQueries({ queryKey: ['expenses', 'group', expense.groupId] });
+                queryClient.invalidateQueries({ queryKey: ['balances', 'group', expense.groupId] });
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['expenses', 'personal', expense.paidBy] });
+            }
+            queryClient.invalidateQueries({ queryKey: ['balances', 'user', expense.paidBy] });
+        },
+    });
+}
+
+export function useDeleteExpense() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: number) => expenseApi.delete(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['expenses'] });
+            queryClient.invalidateQueries({ queryKey: ['balances'] });
+        },
+    });
+}
+
+export function useExpenseSplits(expenseId?: number) {
+    return useQuery({
+        queryKey: ['expense', expenseId, 'splits'],
+        queryFn: () => expenseApi.getSplits(expenseId!),
+        enabled: !!expenseId,
     });
 }
